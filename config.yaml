@@ -44,3 +44,16 @@ decay:
     procedural: 0.7
     semantic: 0.5
     episodic: 0.3
+
+# Marketplace settings
+marketplace:
+  enabled: true                   # Enable marketplace features
+  auto_redact: true               # Auto-redact sensitive data before sharing
+  default_visibility: private     # Default visibility for new engrams
+  redaction_patterns:             # Patterns to redact (regex)
+    - "api[_-]?key\\s*[:=]\\s*[A-Za-z0-9_\\-./+=]{16,}"
+    - "ghp_[A-Za-z0-9]{36}"
+    - "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}"
+    - "/(?:Users|home|root)/[A-Za-z0-9_.-]+/[^\"'\\s,]+"
+  packs_dir: ~/.plur/neural_memory/packs
+  shared_dir: ~/.plur/neural_memory/shared

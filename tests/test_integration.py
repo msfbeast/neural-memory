@@ -514,5 +514,182 @@ class TestEndToEndSession:
         assert captured >= 5   # But not all were rate-limited
 
 
+# ── Test 7: PLUR Consumer ────────────────────────────────────────────────
+
+import tempfile
+import json as json_module
+
+
+class TestPLURConsumer:
+    """Test the PLUR sync consumer."""
+
+    def test_consumer_get_pending_empty(self, event_loop, monkeypatch):
+        """When no marker file exists, pending count should be 0."""
+        from src.bridge.consumer import PLURConsumer
+
+        # Ensure marker file doesn't exist
+        consumer = PLURConsumer()
+        if consumer.marker_path.exists():
+            consumer.marker_path.unlink()
+
+        assert consumer.get_pending_count() == 0
+        assert consumer.get_pending_markers() == []
+
+    def test_consumer_reads_pending_markers(self, event_loop, monkeypatch, tmp_path):
+        """Consumer should read and parse pending markers from file."""
+        from src.bridge.consumer import PLURConsumer
+
+        # Create a temp marker file
+        test_marker = tmp_path / "test_pending.json"
+        marker1 = {
+            "action": "plur_sync",
+            "nm_id": "test-nm-001",
+            "statement": "Test engram statement",
+            "scope": "global",
+            "type": "behavioral",
+            "domain": "testing",
+            "tags": ["test"],
+            "rationale": "Test rationale",
+            "visibility": "private",
+        }
+        marker2 = {
+            "action": "plur_sync",
+            "nm_id": "test-nm-002",
+            "statement": "Another test engram",
+            "scope": "project:test",
+            "type": "procedural",
+            "domain": "testing",
+            "tags": ["test", "workflow"],
+            "rationale": "Second test",
+            "visibility": "private",
+        }
+
+        with open(test_marker, "w") as f:
+            f.write(json_module.dumps(marker1) + "\n")
+            f.write(json_module.dumps(marker2) + "\n")
+
+        # Monkey-patch the marker path
+        consumer = PLURConsumer()
+        original_path = consumer.marker_path
+        consumer.marker_path = test_marker
+
+        try:
+            assert consumer.get_pending_count() == 2
+            markers = consumer.get_pending_markers()
+            assert len(markers) == 2
+            assert markers[0]["nm_id"] == "test-nm-001"
+            assert markers[1]["nm_id"] == "test-nm-002"
+        finally:
+            consumer.marker_path = original_path
+
+    def test_consumer_clear_pending(self, event_loop, monkeypatch, tmp_path):
+        """Consumer should clear all pending markers."""
+        from src.bridge.consumer import PLURConsumer
+
+        test_marker = tmp_path / "test_clear.json"
+        with open(test_marker, "w") as f:
+            f.write(json_module.dumps({"nm_id": "a", "statement": "1"}) + "\n")
+            f.write(json_module.dumps({"nm_id": "b", "statement": "2"}) + "\n")
+            f.write(json_module.dumps({"nm_id": "c", "statement": "3"}) + "\n")
+
+        consumer = PLURConsumer()
+        original_path = consumer.marker_path
+        consumer.marker_path = test_marker
+
+        try:
+            assert consumer.get_pending_count() == 3
+            cleared = consumer.clear_pending()
+            assert cleared == 3
+            assert consumer.get_pending_count() == 0
+            assert not consumer.marker_path.exists()
+        finally:
+            consumer.marker_path = original_path
+
+    def test_consumer_dry_run(self, event_loop, monkeypatch, tmp_path):
+        """Dry run should show pending markers without processing."""
+        from src.bridge.consumer import PLURConsumer
+
+        test_marker = tmp_path / "test_dry.json"
+        with open(test_marker, "w") as f:
+            f.write(json_module.dumps({"nm_id": "dry-001", "statement": "test"}) + "\n")
+
+        consumer = PLURConsumer()
+        original_path = consumer.marker_path
+        consumer.marker_path = test_marker
+
+        try:
+            results = consumer.process_all(dry_run=True)
+            assert results == []
+            # File should still exist with the marker
+            assert consumer.get_pending_count() == 1
+        finally:
+            consumer.marker_path = original_path
+
+    def test_consumer_skips_corrupt_markers(self, event_loop, monkeypatch, tmp_path):
+        """Consumer should skip lines that aren't valid JSON."""
+        from src.bridge.consumer import PLURConsumer
+
+        test_marker = tmp_path / "test_corrupt.json"
+        with open(test_marker, "w") as f:
+            f.write("not valid json\n")
+            f.write(json_module.dumps({"nm_id": "good-001", "statement": "ok"}) + "\n")
+            f.write("{broken json\n")
+            f.write(json_module.dumps({"nm_id": "good-002", "statement": "also ok"}) + "\n")
+
+        consumer = PLURConsumer()
+        original_path = consumer.marker_path
+        consumer.marker_path = test_marker
+
+        try:
+            markers = consumer.get_pending_markers()
+            assert len(markers) == 2
+            assert markers[0]["nm_id"] == "good-001"
+            assert markers[1]["nm_id"] == "good-002"
+        finally:
+            consumer.marker_path = original_path
+
+    def test_consumer_push_queue_fallback(self, event_loop, monkeypatch, tmp_path):
+        """When hermes_tools is not available, consumer should write to push queue."""
+        from src.bridge.consumer import PLURConsumer
+
+        test_dir = tmp_path / "nm_test"
+        test_dir.mkdir()
+        test_marker = test_dir / "plur_sync_pending.json"
+        with open(test_marker, "w") as f:
+            f.write(json_module.dumps({
+                "action": "plur_sync",
+                "nm_id": "fallback-001",
+                "statement": "Test fallback",
+                "scope": "global",
+                "type": "behavioral",
+                "domain": "testing",
+                "tags": ["test"],
+                "rationale": "Testing fallback",
+                "visibility": "private",
+            }) + "\n")
+
+        consumer = PLURConsumer()
+        original_path = consumer.marker_path
+        consumer.marker_path = test_marker
+
+        try:
+            # This should succeed via push queue (no hermes_tools needed)
+            results = consumer.process_all()
+            assert len(results) == 1
+            assert results[0].success is True
+            assert results[0].method == "push_queue"
+
+            # Check push queue was written
+            push_queue = test_dir / "plur_sync_push_pending.jsonl"
+            assert push_queue.exists()
+            with open(push_queue) as f:
+                line = f.readline().strip()
+                push_entry = json_module.loads(line)
+                assert push_entry["action"] == "plur_learn"
+                assert push_entry["engram_id"] == "fallback-001"
+        finally:
+            consumer.marker_path = original_path
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

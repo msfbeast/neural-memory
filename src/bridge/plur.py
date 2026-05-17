@@ -8,6 +8,7 @@ import json
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 from src.capture.filters import EventCategory
@@ -118,38 +119,30 @@ class PLURBridge:
                 updated_at=nm_engram.get("updated_at", datetime.now(timezone.utc).isoformat()),
             )
 
-            # Call plur_learn via subprocess
-            import subprocess
-            result = subprocess.run(
-                [
-                    "python", "-c",
-                    f"""
-import json, sys
-params = json.loads(sys.argv[1])
-# Call plur_learn MCP tool
-params_json = json.dumps(params)
-print(f'Calling plur_learn with: {{params_json}}')
-""",
-                    json.dumps({
-                        "statement": plur_engram.statement,
-                        "scope": plur_engram.scope,
-                        "type": plur_engram.engram_type,
-                        "domain": plur_engram.domain,
-                        "tags": plur_engram.tags,
-                        "rationale": plur_engram.rationale,
-                        "visibility": plur_engram.visibility,
-                    })
-                ],
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
-
-            if result.returncode == 0:
-                print(f"[PLURBridge] Synced engram {nm_id} to PLUR")
-                return True
-
-            return False
+            # Output structured marker so the agent's PostToolUse hook
+            # can detect the sync and call the PLUR MCP tools directly.
+            # The bridge writes a marker file that the capture hook watches.
+            marker = {
+                "action": "plur_sync",
+                "nm_id": nm_id,
+                "statement": plur_engram.statement,
+                "scope": plur_engram.scope,
+                "type": plur_engram.engram_type,
+                "domain": plur_engram.domain,
+                "tags": plur_engram.tags,
+                "rationale": plur_engram.rationale,
+                "visibility": plur_engram.visibility,
+            }
+            # Write marker to a well-known path so the capture hook can pick it up
+            db_path = config.get("storage.engrams_db", "~/.plur/neural_memory/engrams.db")
+            data_dir = str(Path(db_path).parent)
+            Path(data_dir).mkdir(parents=True, exist_ok=True)
+            marker_path = Path(data_dir) / "plur_sync_pending.json"
+            # Append (don't overwrite) in case multiple syncs happen
+            with open(marker_path, "a") as _f:
+                _f.write(json.dumps(marker) + "\n")
+            print(f"[PLURBridge] Sync marker written for engram {nm_id}")
+            return True
 
         except Exception as e:
             print(f"[PLURBridge] Failed to sync to PLUR: {e}")

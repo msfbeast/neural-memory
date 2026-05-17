@@ -10,6 +10,7 @@ from typing import Optional
 
 from src.storage.engrams import EngramStore
 from src.storage.decay import PriorityDecay
+from src.storage.bm25 import get_bm25
 
 
 @dataclass
@@ -85,7 +86,7 @@ class ForgettingManager:
                 except (ValueError, AttributeError):
                     age_days = 0
 
-                if age_days > rule.max_age_days and engram.confidence < rule.min_confidence:
+                if age_days > rule.max_age_days and engram.confidence <= rule.min_confidence:
                     self._store.delete(engram.id)
                     forgotten += 1
                     by_rule[rule.description] = by_rule.get(rule.description, 0) + 1
@@ -129,14 +130,32 @@ class ForgettingManager:
         Returns:
             Dict with forgetting statistics
         """
-        # Search for matching engrams
-        if category:
-            engrams = self._store.search_by_category(category, limit=100)
-        else:
-            engrams = self._store.get_all(limit=100)
+        # Use BM25 search for better matching
+        try:
+            bm25 = get_bm25()
+            results = bm25.search(query, limit=100)
+            matching_ids = set()
+            for r in results:
+                eid = r.get("id") if isinstance(r, dict) else r[0]
+                if eid:
+                    matching_ids.add(eid)
+        except Exception:
+            matching_ids = set()
 
-        # Filter by query (simple substring match for now)
-        matching = [e for e in engrams if query.lower() in e.statement.lower()]
+        # Also do substring match as fallback
+        if not matching_ids:
+            if category:
+                engrams = self._store.search_by_category(category, limit=100)
+            else:
+                engrams = self._store.get_all(limit=100)
+            matching_ids = {e.id for e in engrams if query.lower() in e.statement.lower()}
+
+        matching = [self._store.get(eid) for eid in matching_ids]
+        matching = [e for e in matching if e is not None]
+
+        # Apply category filter if specified
+        if category:
+            matching = [e for e in matching if e.category == category]
 
         forgotten = 0
         for engram in matching:

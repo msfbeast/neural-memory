@@ -120,3 +120,15 @@ class BM25Index:
     def refresh(self) -> None:
         """Refresh the searcher (call after bulk updates)."""
         self._index = self._open_or_create_index()
+
+
+# Cached singleton
+_bm25_instance: Optional[BM25Index] = None
+
+
+def get_bm25() -> BM25Index:
+    """Get (or create) the BM25 index singleton."""
+    global _bm25_instance
+    if _bm25_instance is None:
+        _bm25_instance = BM25Index()
+    return _bm25_instance

@@ -363,6 +363,65 @@ def cmd_plur_status(args: argparse.Namespace) -> None:
         print(f"  - {tool}")
 
 
+def cmd_plur_push(args: argparse.Namespace) -> None:
+    """Push pending engrams from NeuralMemory to PLUR.
+
+    Reads plur_sync_pending.json markers and calls plur_learn
+    to persist them to the real PLUR store.
+    """
+    from src.bridge.consumer import PLURConsumer
+
+    consumer = PLURConsumer()
+    status = consumer.get_status()
+
+    print("=== PLUR Push (NeuralMemory → PLUR) ===\n")
+    print(f"Pending markers: {status['pending_count']}")
+    print(f"Marker file: {status['marker_path']}")
+    print()
+
+    if status['pending_count'] == 0:
+        print("Nothing to push. All markers processed.")
+        return
+
+    # Show what's pending (dry run first)
+    print("Pending engrams:")
+    markers = consumer.get_pending_markers()
+    for i, m in enumerate(markers, 1):
+        engram_id = m.get("nm_id", m.get("engram_id", "?"))[:16]
+        statement = m.get("statement", "")[:80]
+        scope = m.get("scope", "global")
+        print(f"  {i}. [{engram_id}] scope={scope}")
+        print(f"     {statement}...")
+    print()
+
+    if args.dry_run:
+        print("[DRY RUN] No changes made.")
+        return
+
+    # Process all pending markers
+    print("Processing markers...")
+    results = consumer.process_all()
+
+    # Summary
+    success = sum(1 for r in results if r.success)
+    failed = sum(1 for r in results if not r.success)
+    print(f"\n=== Push Complete ===")
+    print(f"  Success: {success}")
+    print(f"  Failed:  {failed}")
+    if failed > 0:
+        print(f"\nFailed engrams remain in {status['marker_path']} for retry.")
+        print("Tip: Run again later — failed markers may succeed on retry.")
+
+
+def cmd_plur_clear(args: argparse.Namespace) -> None:
+    """Clear pending PLUR sync markers."""
+    from src.bridge.consumer import PLURConsumer
+
+    consumer = PLURConsumer()
+    count = consumer.clear_pending()
+    print(f"Cleared {count} pending PLUR sync markers.")
+
+
 def cmd_dedup(args: argparse.Namespace) -> None:
     """Find and merge duplicate engrams."""
     from src.storage.merging import EngramMerger
@@ -500,6 +559,13 @@ def main() -> None:
     # plur-status
     subparsers.add_parser("plur-status", help="Show PLUR sync status")
 
+    # plur-push
+    plur_push = subparsers.add_parser("plur-push", help="Push pending engrams to PLUR")
+    plur_push.add_argument("--dry-run", action="store_true", help="Show what would be pushed")
+
+    # plur-clear
+    subparsers.add_parser("plur-clear", help="Clear pending PLUR sync markers")
+
     # dedup
     subparsers.add_parser("dedup", help="Find and merge duplicate engrams")
 
@@ -539,6 +605,8 @@ def main() -> None:
         "demo": cmd_demo,
         "plur-sync": cmd_plur_sync,
         "plur-status": cmd_plur_status,
+        "plur-push": cmd_plur_push,
+        "plur-clear": cmd_plur_clear,
         "dedup": cmd_dedup,
         "decay": cmd_decay,
         "forget": cmd_forget,

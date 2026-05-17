@@ -1,157 +1,169 @@
 # NeuralMemory
 
-Automatic engram capture for AI agents. Watches tool calls and saves meaningful events as searchable memories.
+Automatic engram capture for Hermes Agent. Watches tool calls and saves meaningful events as searchable engrams.
 
 ## What it does
 
-Every time an AI agent uses a tool (terminal, browser, file ops, etc.), NeuralMemory:
+Every time Hermes Agent uses a tool (terminal, browser, file ops, etc.), the hook:
 1. **Filters** the event against configurable patterns
 2. **Extracts** a human-readable statement from the tool + input + result
-3. **Deduplicates** against existing memories
-4. **Saves** to a searchable store with hybrid BM25 + vector search
-
-## Features
-
-- **PostToolUse capture** — automatic memory capture from tool usage
-- **Hybrid search** — BM25 (keyword) + vector (semantic) search with RRF fusion
-- **Priority decay** — automatic memory tier management
-- **PLUR integration** — syncs with existing PLUR engram store
-- **Web dashboard** — Streamlit-based browsing and management
-- **MCP server** — query memories via MCP protocol
-
-## Quick Start
-
-```bash
-# Install
-python setup.py --auto
-
-# Start dashboard
-streamlit run src/dashboard/app.py
-
-# Or use via MCP server (auto-configured)
-```
+3. **Deduplicates** against existing engrams
+4. **Saves** to the PLUR-compatible engram store
 
 ## Architecture
 
 ```
-AI Agent → post_tool_call hook → capture.py → EngramStore → BM25 + Vector index
-                                        ↓
-                                 MCP Server (query API)
-                                        ↓
-                                 Streamlit Dashboard
+Hermes Agent → post_tool_call hook → capture.py → EngramStore → BM25 + Vector index
+                                              ↓
+                                       MCP Server (query API)
+                                              ↓
+                                       Streamlit Dashboard
 ```
+
+## Components
+
+- **hooks/capture.py** — Shell hook that runs on every post_tool_call
+- **src/mcp/server.py** — MCP server exposing memory tools
+- **src/storage/engrams.py** — SQLite engram storage
+- **src/storage/vector.py** — Vector store (sentence-transformers)
+- **src/capture/extractor.py** — Statement extraction logic
+- **src/dashboard/app.py** — Streamlit UI for browsing/searching engrams
+- **config.yaml** — Filter patterns, storage paths, search weights
 
 ## Installation
 
-### Option 1: Direct Install (Recommended)
+### 1. Install the skill
 
 ```bash
-# Clone or copy the project
-mkdir -p ~/.hermes/skills/neural-memory
-cd ~/.hermes/skills/neural-memory
-# Copy all files from this repo
+cp -r /path/to/neural-memory ~/.hermes/skills/neural-memory
+```
 
-# Install dependencies and configure
+Or clone from git:
+
+```bash
+git clone <repo-url> ~/.hermes/skills/neural-memory
+```
+
+### 2. Run setup
+
+```bash
+cd ~/.hermes/skills/neural-memory
 python setup.py --auto
 ```
 
-### Option 2: Git Clone
+This will:
+- Install Python dependencies (streamlit, sentence-transformers, rank-bm25, pyyaml)
+- Register the PostToolUse hook in `~/.hermes/config.yaml`
+- Configure the MCP server in `~/.hermes/config.yaml`
+- Copy the skill to `~/.hermes/skills/neural-memory`
 
-```bash
-git clone https://github.com/NousResearch/neural-memory.git ~/.hermes/skills/neural-memory
-cd ~/.hermes/skills/neural-memory
-python setup.py --auto
-```
+### 3. Accept the hook
 
-### Option 3: Shell Script
-
-```bash
-git clone https://github.com/NousResearch/neural-memory.git ~/.hermes/skills/neural-memory
-cd ~/.hermes/skills/neural-memory
-chmod +x install.sh
-./install.sh --auto
-```
-
-## Configuration
-
-Edit `config.yaml` to customize capture patterns:
+On first run, Hermes Agent will prompt for consent. Approve it, or set:
 
 ```yaml
-capture:
-  enabled: true
-  max_events_per_session: 100
-  filter_patterns:
-    - user_correction
-    - debug_breakthrough
-    - tool_discovery
-    - user_preference
-    - budget_constraint
-    - file_operation
-    - config_change
-    - workflow_discovery
+hooks_auto_accept: true
 ```
+
+### 4. (Optional) Start the dashboard
+
+```bash
+streamlit run src/dashboard/app.py
+```
+
+Dashboard runs at `http://localhost:8507`
 
 ## Filter Patterns
 
-| Pattern | Tools | Description |
-|---------|-------|-------------|
-| `user_correction` | plur_learn, plur_forget, memory, skill_manage, clarify | User corrected the agent |
-| `debug_breakthrough` | terminal, execute_code, browser_console, session_search | Debug session with a solution |
-| `tool_discovery` | browser_navigate, browser_snapshot, skill_view, skills_list | Tool discovery or setup |
-| `user_preference` | plur_learn, plur_ingest, memory | User preference or habit |
-| `budget_constraint` | terminal, plur_learn, browser_navigate | Budget or pricing constraint |
-| `file_operation` | write_file, patch, read_file, search_files | Important file operations |
-| `config_change` | write_file, patch, terminal | Config/setup changes |
-| `workflow_discovery` | terminal, execute_code, browser_navigate | New workflow discovered |
+Events are only captured if they match a filter pattern. Each pattern has:
+- **name** — Pattern identifier
+- **tools** — Which tools trigger this pattern
+- **patterns** — Keywords to match in the event content
 
-## API Reference
+### Built-in patterns
 
-### Python API
+| Pattern | Tools | Keywords | Description |
+|---------|-------|----------|-------------|
+| user_correction | plur_learn, plur_forget, plur_promote, plur_feedback, memory, skill_manage, clarify | correct, no use, not Y, prefer, always, never, wrong, mistake, fixed | User corrected the agent |
+| debug_breakthrough | terminal, execute_code, browser_console, session_search, search_files | fix, bug, error, timeout, root cause, traceback, exception, solved, resolved, worked, success | Debug session with a solution |
+| tool_discovery | browser_navigate, browser_snapshot, browser_click, browser_type, browser_press, skill_view, skills_list | page loaded, successfully, found, installed, available, registered, working | Tool discovery or setup |
+| user_preference | plur_learn, plur_ingest, memory | prefers, wants, likes, dislikes, avoid, skip, prefer, always, never | User preference or habit |
+| budget_constraint | terminal, plur_learn, browser_navigate | budget, price, ₹, rupee, cost, cheap, expensive, free, paid, subscription | Budget or pricing constraint |
+| file_operation | write_file, patch, read_file, search_files, file | *(none — always matches)* | Important file operations |
+| config_change | write_file, patch, terminal | config, yaml, settings, setup, install, pip install, npm install, brew install | Config/setup changes |
+| workflow_discovery | terminal, execute_code, browser_navigate, skill_view | workflow, pipeline, process, automate, script, build, deploy, test | New workflow discovered |
 
-```python
-from src.storage.engrams import EngramStore
-from src.search.hybrid import HybridSearch
+### Customizing patterns
 
-# Store
-store = EngramStore()
-store.save(engram)
+Edit `config.yaml`:
 
-# Search
-hybrid = HybridSearch(store)
-results = hybrid.search("user correction", limit=10)
-
-# Decay
-decay = PriorityDecay(store)
-decay.apply_decay()
+```yaml
+capture:
+  filter_patterns:
+    - user_correction
+    - debug_breakthrough
+    # Remove patterns you don't want
+    # - tool_discovery
 ```
 
-### MCP Tools
+Or add custom patterns in `capture.py`'s `FILTER_PATTERNS` list.
 
-| Tool | Description |
-|------|-------------|
-| `neural_memory_search` | Search engrams by query |
-| `neural_memory_get` | Get engram by ID |
-| `neural_memory_get_all` | List all engrams |
-| `neural_memory_delete` | Delete engram by ID |
-| `neural_memory_stats` | Get memory statistics |
-| `neural_memory_tiers` | Get tier statistics |
-| `neural_memory_apply_decay` | Apply priority decay |
-| `neural_memory_trim_tiers` | Trim memory tiers |
+## Debug Mode
 
-## Testing
-
-Test the hook with a sample event:
+Set `NEURAL_MEMORY_DEBUG=1` to log all events to stderr:
 
 ```bash
-echo '{
-  "hook_event_name": "post_tool_call",
-  "tool_name": "terminal",
-  "tool_input": {"command": "cat config.yaml"},
-  "session_id": "test-123",
-  "cwd": "/Users/msfbeast",
-  "extra": {"result": "# config\nkey: value"}
-}' | python3 hooks/capture.py
+# Test a single event
+echo '{"tool_name":"terminal","tool_input":{"command":"ls"},"extra":{}}' | \
+  NEURAL_MEMORY_DEBUG=1 python3 ~/.hermes/skills/neural-memory/hooks/capture.py
 ```
+
+## Statement Extraction
+
+The hook builds rich statements by combining:
+- **Tool name** — What was called
+- **Tool input** — What was passed to it
+- **Result/output** — What came back
+
+Examples:
+- `Terminal: cat file.py → #!/usr/bin/env python3` (command + first lines of output)
+- `Write: /path/to/file.py` (file path)
+- `Patch: /path/to/file.py\n- old line\n+ new line` (diff preview)
+- `plur_learn: User correction on plur_learn: Project uses pytest with xdist` (direct statement)
+
+## Troubleshooting
+
+### Hook not firing
+
+1. Check the hook is registered: `hermes hooks list`
+2. Check the allowlist: `~/.hermes/shell-hooks-allowlist.json`
+3. Check Hermes logs for errors: `~/.hermes/logs/`
+
+### No engrams being saved
+
+1. Enable debug mode: `NEURAL_MEMORY_DEBUG=1`
+2. Check stderr output for filter mismatches
+3. Verify the filter patterns include your tool: check `FILTER_PATTERNS` in `capture.py`
+4. Check the EngramStore path exists: `~/.plur/neural_memory/`
+
+### Duplicate engrams
+
+The hook uses content hashing for deduplication. If you still see duplicates:
+1. Check `check_dedup()` in `capture.py` — it searches for similar statements
+2. The similarity threshold is 85% word overlap
+3. You can increase it by changing `0.85` to a higher value
+
+### MCP server not responding
+
+1. Check the server is running: `python3 src/mcp/run.py`
+2. Check for errors in stderr
+3. Verify dependencies: `pip install sentence-transformers pyyaml`
+
+### Dashboard not loading
+
+1. Check Streamlit is installed: `pip install streamlit`
+2. Run: `streamlit run src/dashboard/app.py`
+3. Check the database exists: `~/.plur/neural_memory/engrams.db`
 
 ## File Layout
 
@@ -171,16 +183,147 @@ neural-memory/
 │   ├── capture/
 │   │   ├── extractor.py   # Statement extraction
 │   │   └── filters.py     # Filter definitions
+│   ├── marketplace/
+│   │   ├── redactor.py    # Sensitive data redaction
+│   │   ├── cards.py       # Shareable memory/pack cards
+│   │   ├── packs.py       # Pack management
+│   │   └── client.py      # Marketplace client
 │   └── dashboard/
-│       └── app.py         # Streamlit UI
+│       └── app.py         # Streamlit UI (with Marketplace tab)
 ├── tests/
 │   └── test_capture.py    # Hook unit tests
 ├── setup.py               # Installation script
-├── install.sh             # Shell installer
 ├── requirements.txt       # Python dependencies
 └── SKILL.md               # Skill metadata
 ```
 
-## License
+## Testing
 
-MIT License
+Test the hook with a sample event:
+
+```bash
+echo '{
+  "hook_event_name": "post_tool_call",
+  "tool_name": "terminal",
+  "tool_input": {"command": "cat config.yaml"},
+  "session_id": "test-123",
+  "cwd": "/Users/msfbeast",
+  "extra": {"result": "# config\\nkey: value"}
+}' | python3 hooks/capture.py
+```
+
+Check the engram was saved:
+
+```bash
+python3 -c "
+import sys; sys.path.insert(0, 'src')
+from storage.engrams import EngramStore
+store = EngramStore()
+stats = store.get_stats()
+print(f'Total engrams: {stats[\"total\"]}')
+"
+```
+
+## Marketplace
+
+Share your captured knowledge with the community. Browse and install packs created by others.
+
+### Privacy-First Design
+
+- **All memories are private by default** — nothing is shared unless you explicitly opt in
+- **Auto-redaction** — sensitive data (API keys, paths, emails, tokens) is automatically stripped before sharing
+- **One-click unshare** — remove any memory from the marketplace at any time
+
+### Sharing a Memory
+
+Via MCP tool:
+```json
+{"jsonrpc": "2.0", "id": 1, "method": "memory_share", "params": {
+  "engram_id": "NM-20260516-abc123",
+  "title": "My custom title",
+  "author": "myusername",
+  "tags": "python, debugging, best-practices"
+}}
+```
+
+Via Dashboard: Go to **Marketplace → Share Memory**, paste the engram ID, and click "Share".
+
+### Redaction Preview
+
+The dashboard includes a redaction preview tool. Paste any text to see how sensitive data would be redacted before sharing.
+
+### Browsing Packs
+
+Via MCP tool:
+```json
+{"jsonrpc": "2.0", "id": 1, "method": "memory_browse_packs", "params": {
+  "query": "python debugging",
+  "tags": "python, best-practices"
+}}
+```
+
+Via Dashboard: Go to **Marketplace → Browse Packs**, search by query or tags.
+
+### Downloading a Pack
+
+```json
+{"jsonrpc": "2.0", "id": 1, "method": "memory_download_pack", "params": {
+  "pack_id": "pack-20260516-abc123"
+}}
+```
+
+### Managing Your Shared Memories
+
+```json
+// List what you've shared
+{"jsonrpc": "2.0", "id": 1, "method": "memory_list_shared", "params": {}}
+
+// Unshare a memory
+{"jsonrpc": "2.0", "id": 1, "method": "memory_unshare", "params": {
+  "engram_id": "NM-20260516-abc123"
+}}
+
+// Create a pack from your memories
+{"jsonrpc": "2.0", "id": 1, "method": "memory_create_pack", "params": {
+  "name": "Python Debugging Patterns",
+  "description": "Common debugging patterns I've discovered",
+  "card_ids": "NM-20260516-abc1, NM-20260516-def2, NM-20260516-ghi3",
+  "tags": "python, debugging",
+  "author": "myusername"
+}}
+```
+
+### Sensitive Data Patterns
+
+The redactor automatically detects and redacts:
+- API keys and tokens (GitHub, AWS, JWT, generic)
+- Absolute file paths (`/Users/...`, `/home/...`)
+- Email addresses
+- Phone numbers
+- IP addresses
+- Credit card numbers
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────┐
+│                  Marketplace                    │
+│                                                 │
+│  ┌──────────┐  ┌──────────┐  ┌──────────────┐  │
+│  │  Share   │  │  Browse  │  │   My Shared  │  │
+│  │  Memory  │  │  Packs   │  │   Manage     │  │
+│  └────┬─────┘  └────┬─────┘  └──────┬───────┘  │
+│       │              │               │           │
+│       ▼              ▼               ▼           │
+│  ┌────────────────────────────────────────────┐  │
+│  │           Redaction Engine                 │  │
+│  │  (API keys, paths, emails, tokens)         │  │
+│  └────────────────────────────────────────────┘  │
+│       │              │               │           │
+│       ▼              ▼               ▼           │
+│  ┌──────────┐  ┌──────────┐  ┌──────────────┐  │
+│  │  Pack    │  │  Pack    │  │  Memory      │  │
+│  │  Store   │  │  Store   │  │  Cards       │  │
+│  └──────────┘  └──────────┘  └──────────────┘  │
+└─────────────────────────────────────────────────┘
+```

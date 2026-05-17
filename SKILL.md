@@ -8,7 +8,7 @@ platforms: [linux, macos, windows]
 metadata:
   neural-memory:
     tags: [memory, engram, plur, neural, capture, search]
-    homepage: https://github.com/NousResearch/neural-memory
+    homepage: https://github.com/msfbeast/neural-memory
 ---
 
 # NeuralMemory
@@ -133,6 +133,54 @@ decay.apply_decay()
 | `neural_memory_tiers` | Get tier statistics |
 | `neural_memory_apply_decay` | Apply priority decay |
 | `neural_memory_trim_tiers` | Trim memory tiers |
+
+### PLUR Sync Tools
+
+| Tool | Description |
+|------|-------------|
+| `plur_sync` | Full sync: load PLUR engrams into NeuralMemory |
+| `plur_status` | Show sync configuration and status |
+| `plur_load_engrams` | Load PLUR engrams into BM25 index |
+| `plur_push` | Push pending engrams from NeuralMemory to PLUR |
+| `plur_clear` | Clear pending PLUR sync markers |
+
+### CLI Commands
+
+```bash
+# Sync direction: neural-memory → PLUR (push)
+python -m src.main plur-push          # Push pending engrams to PLUR
+python -m src.main plur-push --dry-run # Show what would be pushed
+python -m src.main plur-clear          # Clear pending markers
+
+# Sync direction: PLUR → neural-memory (pull)
+python -m src.main plur-sync           # Full bidirectional sync
+python -m src.main plur-status         # Show sync status
+python -m src.main plur-load-engrams   # Load PLUR engrams into BM25
+```
+
+## PLUR Sync Architecture
+
+```
+EventLoop.capture() → Engram saved to SQLite
+                     → PLURBridge.capture_to_plur() writes marker to plur_sync_pending.json
+                     → Consumer reads markers
+                     → Calls plur_learn (direct) OR writes to push queue (fallback)
+                     → PostToolUse hook reads push queue → calls plur_learn
+```
+
+### Two-Tier Sync
+
+1. **Direct (in Hermes session)**: Consumer calls `plur_learn` via `hermes_tools` subprocess
+2. **Fallback (outside session)**: Consumer writes to `plur_sync_push_pending.jsonl`,
+   PostToolUse hook reads and processes entries
+
+### Dashboard
+
+The Streamlit dashboard includes a "PLUR Sync" tab with:
+- Pending markers counter + sync config metrics
+- Expandable pending marker details
+- Push All / Dry Run / Clear All buttons
+- Push Queue (PostToolUse Hook) status
 
 ## Installation for Community
 

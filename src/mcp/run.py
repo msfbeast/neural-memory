@@ -16,6 +16,8 @@ Tools:
   plur_sync               - Sync NeuralMemory with PLUR
   plur_status             - PLUR sync status
   plur_load_engrams       - Load PLUR engrams into BM25 index
+  plur_push               - Push pending engrams to PLUR
+  plur_clear              - Clear pending PLUR sync markers
 
 Usage (stdio):
     python src/mcp/server.py

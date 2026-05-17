@@ -57,7 +57,7 @@ DEBUG = os.environ.get("NEURAL_MEMORY_DEBUG", "0") == "1"
 FILTER_PATTERNS = [
     {
         "name": "user_correction",
-        "tools": ["plur_learn", "plur_forget", "plur_promote", "plur_feedback", "memory", "skill_manage", "plur_learn", "clarify"],
+        "tools": ["plur_learn", "plur_forget", "plur_promote", "plur_feedback", "memory", "skill_manage", "clarify"],
         "patterns": ["correct", "no, use", "not Y", "prefer", "always", "never", "wrong", "mistake", "fixed"],
         "description": "User corrected the agent's approach or behavior",
     },

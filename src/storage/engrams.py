@@ -125,6 +125,14 @@ class EngramStore:
             "DELETE FROM engrams WHERE id = ?", (engram_id,)
         )
         self._conn.commit()
+        if cursor.rowcount > 0:
+            # Sync BM25 index deletion
+            try:
+                from src.storage.bm25 import get_bm25
+                bm25 = get_bm25()
+                bm25.delete(engram_id)
+            except Exception:
+                pass  # Non-critical; BM25 will sync on next full rebuild
         return cursor.rowcount > 0
 
     def count(self) -> int:

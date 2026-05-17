@@ -1,52 +1,35 @@
 # Python
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
 *.egg-info/
-.installed.cfg
+dist/
+build/
+.eggs/
 *.egg
 
 # Virtual environments
+.venv/
 venv/
-env/
-ENV/
+
+# NeuralMemory data
+*.db
+*.json
+.cache/
+cache/
+data/
 
 # IDE
-.vscode/
 .idea/
+.vscode/
 *.swp
 *.swo
-*~
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Data files (generated at runtime)
-*.db
-*.sqlite3
-*.json
+# Streamlit
+.streamlit/
+
+# Logs
 *.log
-
-# Streamlit cache
-.streamlit/cache*
-
-# Test cache
-.pytest_cache/
-
-# Node modules (if needed later)
-node_modules/

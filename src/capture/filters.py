@@ -11,23 +11,53 @@ from src.config import config
 
 
 class EventCategory(Enum):
-    """Categories for auto-capture classification."""
-    USER_CORRECTION = "user_correction"
-    DEBUG_BREAKTHROUGH = "debug_breakthrough"
-    NEW_WORKFLOW = "new_workflow"
-    ARCHITECTURE_DECISION = "architecture_decision"
-    API_QUIRK = "api_quirk"
-    USER_PREFERENCE = "user_preference"
-    BUDGET_CONSTRAINT = "budget_constraint"
-    PROJECT_CONVENTION = "project_convention"
-    ERROR_PATTERN = "error_pattern"
-    TOOL_DISCOVERY = "tool_discovery"
+    """Categories for auto-capture classification.
+
+    Note: The display names (values) are the NEW intuitive names.
+    The old technical names are preserved for backward compatibility
+    in existing engrams. Use get_category_label() to normalize.
+    """
+    USER_CORRECTION = "corrections"
+    DEBUG_BREAKTHROUGH = "debug_playbooks"
+    NEW_WORKFLOW = "workflows"
+    ARCHITECTURE_DECISION = "architecture"
+    API_QUIRK = "gotchas"
+    USER_PREFERENCE = "preferences"
+    BUDGET_CONSTRAINT = "budget"
+    PROJECT_CONVENTION = "conventions"
+    ERROR_PATTERN = "error_patterns"
+    TOOL_DISCOVERY = "tools"
     ROUTINE_FILE_READ = "routine_file_read"
     STANDARD_TERMINAL = "standard_terminal"
     GIT_OPERATION = "git_operations"
     CRON_LISTING = "cron_listings"
     SIMPLE_LOOKUP = "simple_lookups"
-    UNKNOWN = "unknown"
+    UNKNOWN = "misc"
+
+
+# Mapping from enum value (new name) to config-style name
+_CONFIG_NAME_MAP: dict[str, str] = {
+    "corrections": "user_correction",
+    "debug_playbooks": "debug_breakthrough",
+    "workflows": "new_workflow",
+    "architecture": "architecture_decision",
+    "gotchas": "api_quirk",
+    "preferences": "user_preference",
+    "budget": "budget_constraint",
+    "conventions": "project_convention",
+    "error_patterns": "error_pattern",
+    "tools": "tool_discovery",
+    "routine_file_read": "routine_file_read",
+    "standard_terminal": "standard_terminal",
+    "git_operations": "git_operations",
+    "cron_listings": "cron_listings",
+    "simple_lookups": "simple_lookups",
+}
+
+
+def _config_name(cat: EventCategory) -> str:
+    """Return the config-style category name (e.g. 'user_correction')."""
+    return _CONFIG_NAME_MAP.get(cat.value, cat.value)
 
 
 @dataclass
@@ -94,12 +124,12 @@ class Filter:
 
         # Check save patterns first (higher priority)
         for pattern, category, confidence in _CLASSIFY_PATTERNS:
-            cat_value = category.value if isinstance(category, EventCategory) else category
+            cat_value = _config_name(category) if isinstance(category, EventCategory) else category
             if cat_value in self._save_categories:
                 if pattern.search(text):
                     return CaptureDecision(
                         should_save=True,
-                        category=category if isinstance(category, EventCategory) else EventCategory(cat_value),
+                        category=category,
                         confidence=confidence,
                         reason=f"Matched: {cat_value} (confidence={confidence:.2f})"
                     )
@@ -107,12 +137,12 @@ class Filter:
 
         # Then check ignore patterns
         for pattern, category, confidence in _CLASSIFY_PATTERNS:
-            cat_value = category.value if isinstance(category, EventCategory) else category
+            cat_value = _config_name(category) if isinstance(category, EventCategory) else category
             if cat_value in self._ignore_categories:
                 if pattern.search(text):
                     return CaptureDecision(
                         should_save=False,
-                        category=category if isinstance(category, EventCategory) else EventCategory(cat_value),
+                        category=category,
                         confidence=confidence,
                         reason=f"Ignored: {cat_value}"
                     )
@@ -145,8 +175,8 @@ class Filter:
         text = " ".join(text_parts)
 
         for pattern, category, _ in _CLASSIFY_PATTERNS:
-            cat_value = category.value if isinstance(category, EventCategory) else category
+            cat_value = _config_name(category) if isinstance(category, EventCategory) else category
             if cat_value in self._save_categories or cat_value in self._ignore_categories:
                 if pattern.search(text):
-                    return category if isinstance(category, EventCategory) else EventCategory(cat_value)
+                    return category
         return EventCategory.UNKNOWN

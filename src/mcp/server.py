@@ -308,6 +308,265 @@ class MCPHandler:
                     },
                 },
             ),
+            "plur_push": MCPTool(
+                name="plur_push",
+                description="Push pending engrams from NeuralMemory to PLUR. "
+                           "Reads plur_sync_pending.json markers and calls plur_learn "
+                           "to persist them to the real PLUR store. "
+                           "If hermes_tools is not available, writes to a push queue "
+                           "for the agent's PostToolUse hook to process.",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "dry_run": {
+                            "type": "boolean",
+                            "description": "If true, show what would be pushed without processing",
+                            "default": False,
+                        },
+                    },
+                },
+            ),
+            "plur_clear": MCPTool(
+                name="plur_clear",
+                description="Clear all pending PLUR sync markers. "
+                           "Use after manual review or when markers are stale.",
+                input_schema={
+                    "type": "object",
+                    "properties": {},
+                },
+            ),
+            # ---- Marketplace Tools ----
+            "memory_share": MCPTool(
+                name="memory_share",
+                description="Share a memory to the NeuralMemory marketplace. "
+                           "Sensitive data is auto-redacted. Memories are private by default.",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "engram_id": {
+                            "type": "string",
+                            "description": "Engram ID to share",
+                        },
+                        "title": {
+                            "type": "string",
+                            "description": "Optional custom title (auto-generated if omitted)",
+                        },
+                        "author": {
+                            "type": "string",
+                            "description": "Author name (default: anonymous)",
+                        },
+                        "tags": {
+                            "type": "string",
+                            "description": "Comma-separated tags",
+                        },
+                    },
+                    "required": ["engram_id"],
+                },
+            ),
+            "memory_unshare": MCPTool(
+                name="memory_unshare",
+                description="Remove a memory from the marketplace. "
+                           "Reverts visibility to private.",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "engram_id": {
+                            "type": "string",
+                            "description": "Engram ID to unshare",
+                        },
+                    },
+                    "required": ["engram_id"],
+                },
+            ),
+            "memory_browse_packs": MCPTool(
+                name="memory_browse_packs",
+                description="Browse available memory packs from the marketplace. "
+                           "Search by query or filter by tags.",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "Search query (optional)",
+                        },
+                        "tags": {
+                            "type": "string",
+                            "description": "Comma-separated tags to filter by",
+                        },
+                        "limit": {
+                            "type": "integer",
+                            "description": "Max results (default: 20)",
+                        },
+                    },
+                },
+            ),
+            "memory_download_pack": MCPTool(
+                name="memory_download_pack",
+                description="Download and install a memory pack. "
+                           "Installs all memories in the pack into your local store.",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "pack_id": {
+                            "type": "string",
+                            "description": "Pack ID to download",
+                        },
+                    },
+                    "required": ["pack_id"],
+                },
+            ),
+            "memory_list_shared": MCPTool(
+                name="memory_list_shared",
+                description="List memories you've shared to the marketplace.",
+                input_schema={
+                    "type": "object",
+                    "properties": {},
+                },
+            ),
+            "memory_create_pack": MCPTool(
+                name="memory_create_pack",
+                description="Create a pack from local memory cards. "
+                           "Group related memories into a shareable pack.",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string",
+                            "description": "Pack name",
+                        },
+                        "description": {
+                            "type": "string",
+                            "description": "Pack description",
+                        },
+                        "card_ids": {
+                            "type": "string",
+                            "description": "Comma-separated engram IDs to include",
+                        },
+                        "tags": {
+                            "type": "string",
+                            "description": "Comma-separated tags",
+                        },
+                        "author": {
+                            "type": "string",
+                            "description": "Author name (default: anonymous)",
+                        },
+                    },
+                    "required": ["name", "description", "card_ids"],
+                },
+            ),
+            # ---- Recipe Tools ----
+            "recipe_create": MCPTool(
+                name="recipe_create",
+                description="Create an installable recipe — a curated bundle of memories "
+                           "plus step-by-step setup instructions. Others can install "
+                           "your recipe to get a complete setup running quickly.",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string",
+                            "description": "Recipe name (e.g., 'Local AI Supercomputer')",
+                        },
+                        "description": {
+                            "type": "string",
+                            "description": "What this recipe sets up",
+                        },
+                        "memories": {
+                            "type": "string",
+                            "description": "Comma-separated engram IDs to include",
+                        },
+                        "instructions": {
+                            "type": "string",
+                            "description": "Step-by-step setup instructions (markdown)",
+                        },
+                        "dependencies": {
+                            "type": "string",
+                            "description": "Comma-separated list of prerequisites",
+                        },
+                        "tags": {
+                            "type": "string",
+                            "description": "Comma-separated tags for discoverability",
+                        },
+                        "category": {
+                            "type": "string",
+                            "description": "Primary category (misc, tools, workflows, etc.)",
+                        },
+                        "difficulty": {
+                            "type": "string",
+                            "enum": ["beginner", "intermediate", "advanced"],
+                            "description": "Difficulty level",
+                        },
+                        "estimated_minutes": {
+                            "type": "integer",
+                            "description": "Estimated setup time in minutes",
+                        },
+                        "author": {
+                            "type": "string",
+                            "description": "Author name (default: anonymous)",
+                        },
+                    },
+                    "required": ["name", "description", "memories", "instructions"],
+                },
+            ),
+            "recipe_browse": MCPTool(
+                name="recipe_browse",
+                description="Browse available recipes from the marketplace. "
+                           "Search by query, filter by tags or category.",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "Search query (optional)",
+                        },
+                        "tags": {
+                            "type": "string",
+                            "description": "Comma-separated tags to filter by",
+                        },
+                        "category": {
+                            "type": "string",
+                            "description": "Filter by category",
+                        },
+                    },
+                },
+            ),
+            "recipe_install": MCPTool(
+                name="recipe_install",
+                description="Install a recipe — downloads memories and setup instructions. "
+                           "One-click setup for complete configurations.",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "recipe_id": {
+                            "type": "string",
+                            "description": "Recipe ID to install",
+                        },
+                    },
+                    "required": ["recipe_id"],
+                },
+            ),
+            "recipe_list": MCPTool(
+                name="recipe_list",
+                description="List all installed recipes with their details.",
+                input_schema={
+                    "type": "object",
+                    "properties": {},
+                },
+            ),
+            "recipe_detail": MCPTool(
+                name="recipe_detail",
+                description="Get full details of a recipe including instructions and dependencies.",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "recipe_id": {
+                            "type": "string",
+                            "description": "Recipe ID to get details for",
+                        },
+                    },
+                    "required": ["recipe_id"],
+                },
+            ),
         }
 
     def handle_request(self, request: dict) -> MCPResponse:
@@ -508,6 +767,232 @@ class MCPHandler:
             "loaded_count": len(loaded),
             "engrams": [e for e in loaded],
         }
+
+    def _handle_plur_push(self, params: dict) -> dict:
+        """Handle plur_push tool — push pending engrams to PLUR."""
+        from src.bridge.consumer import PLURConsumer
+
+        dry_run = params.get("dry_run", False)
+        consumer = PLURConsumer()
+
+        if dry_run:
+            markers = consumer.get_pending_markers()
+            return {
+                "success": True,
+                "dry_run": True,
+                "pending_count": len(markers),
+                "message": f"{len(markers)} pending markers found. Use dry_run=false to process.",
+            }
+
+        results = consumer.process_all()
+        success_count = sum(1 for r in results if r.success)
+        failed_count = sum(1 for r in results if not r.success)
+
+        return {
+            "success": True,
+            "pending_count": len(results),
+            "success_count": success_count,
+            "failed_count": failed_count,
+            "results": [r.to_dict() for r in results],
+            "message": f"Pushed {success_count}/{len(results)} engrams to PLUR",
+        }
+
+    def _handle_plur_clear(self, params: dict) -> dict:
+        """Handle plur_clear tool — clear pending sync markers."""
+        from src.bridge.consumer import PLURConsumer
+
+        consumer = PLURConsumer()
+        count = consumer.clear_pending()
+        return {
+            "success": True,
+            "cleared_count": count,
+            "message": f"Cleared {count} pending PLUR sync markers",
+        }
+
+    # ---- Marketplace Tools ----
+
+    def _handle_memory_share(self, params: dict) -> dict:
+        """Handle memory_share — share a memory to the marketplace."""
+        from src.marketplace.client import MarketplaceClient
+        client = MarketplaceClient()
+
+        engram_id = params.get("engram_id", "")
+        title = params.get("title")
+        author = params.get("author", "anonymous")
+        tags_str = params.get("tags", "")
+        tag_list = [t.strip() for t in tags_str.split(",") if t.strip()] if tags_str else None
+
+        result = client.share_memory(
+            engram_id=engram_id,
+            title=title,
+            author=author,
+            tags=tag_list,
+        )
+        return result
+
+    def _handle_memory_unshare(self, params: dict) -> dict:
+        """Handle memory_unshare — remove a memory from the marketplace."""
+        from src.marketplace.client import MarketplaceClient
+        client = MarketplaceClient()
+
+        engram_id = params.get("engram_id", "")
+        return client.unshare_memory(engram_id)
+
+    def _handle_memory_browse_packs(self, params: dict) -> dict:
+        """Handle memory_browse_packs — browse available packs."""
+        from src.marketplace.client import MarketplaceClient
+        client = MarketplaceClient()
+
+        query = params.get("query", "") or None
+        tags_str = params.get("tags", "")
+        tag_list = [t.strip() for t in tags_str.split(",") if t.strip()] if tags_str else None
+        limit = params.get("limit", 20)
+
+        packs = client.browse_packs(query=query, tags=tag_list, limit=limit)
+        return {
+            "success": True,
+            "packs": [p.to_dict() for p in packs],
+            "count": len(packs),
+        }
+
+    def _handle_memory_download_pack(self, params: dict) -> dict:
+        """Handle memory_download_pack — download and install a pack."""
+        from src.marketplace.client import MarketplaceClient
+        client = MarketplaceClient()
+
+        pack_id = params.get("pack_id", "")
+        return client.download_pack(pack_id)
+
+    def _handle_memory_list_shared(self, params: dict) -> dict:
+        """Handle memory_list_shared — list memories I've shared."""
+        from src.marketplace.client import MarketplaceClient
+        client = MarketplaceClient()
+
+        shared = client.list_shared()
+        return {
+            "success": True,
+            "shared": shared,
+            "count": len(shared),
+        }
+
+    def _handle_memory_create_pack(self, params: dict) -> dict:
+        """Handle memory_create_pack — create a pack from local cards."""
+        from src.marketplace.client import MarketplaceClient
+        client = MarketplaceClient()
+
+        name = params.get("name", "")
+        description = params.get("description", "")
+        card_ids_str = params.get("card_ids", "")
+        tags_str = params.get("tags", "")
+        author = params.get("author", "anonymous")
+
+        card_id_list = [c.strip() for c in card_ids_str.split(",") if c.strip()]
+        tag_list = [t.strip() for t in tags_str.split(",") if t.strip()] if tags_str else None
+
+        pack = client.pack_manager.create_pack(
+            name=name,
+            description=description,
+            card_ids=card_id_list,
+            tags=tag_list,
+            author=author,
+        )
+        return {"success": True, "pack": pack.to_dict()}
+
+    # ---- Recipe Tools ----
+
+    def _handle_recipe_create(self, params: dict) -> dict:
+        """Handle recipe_create — create an installable recipe."""
+        from src.marketplace.packs import RecipeManager
+
+        rm = RecipeManager()
+        name = params.get("name", "")
+        description = params.get("description", "")
+        memories_str = params.get("memories", "")
+        instructions = params.get("instructions", "")
+        dependencies_str = params.get("dependencies", "")
+        tags_str = params.get("tags", "")
+        category = params.get("category", "misc")
+        difficulty = params.get("difficulty", "beginner")
+        estimated_minutes = params.get("estimated_minutes", 5)
+        author = params.get("author", "anonymous")
+
+        memory_list = [m.strip() for m in memories_str.split(",") if m.strip()]
+        dep_list = [d.strip() for d in dependencies_str.split(",") if d.strip()] if dependencies_str else []
+        tag_list = [t.strip() for t in tags_str.split(",") if t.strip()] if tags_str else None
+
+        recipe = rm.create_recipe(
+            name=name,
+            description=description,
+            memories=memory_list,
+            instructions=instructions,
+            dependencies=dep_list,
+            tags=tag_list,
+            category=category,
+            difficulty=difficulty,
+            estimated_minutes=estimated_minutes,
+            author=author,
+        )
+        return {"success": True, "recipe": recipe.to_dict()}
+
+    def _handle_recipe_browse(self, params: dict) -> dict:
+        """Handle recipe_browse — browse available recipes."""
+        from src.marketplace.packs import RecipeManager
+
+        rm = RecipeManager()
+        query = params.get("query", "") or None
+        tags_str = params.get("tags", "")
+        tag_list = [t.strip() for t in tags_str.split(",") if t.strip()] if tags_str else None
+        category = params.get("category", None)
+
+        recipes = rm.search_recipes(query=query, tags=tag_list, category=category)
+        cards = [
+            {
+                "id": r.id,
+                "name": r.name,
+                "description": r.description,
+                "category": r.category,
+                "difficulty": r.difficulty,
+                "estimated_minutes": r.estimated_minutes,
+                "author": r.author,
+                "tags": r.tags,
+                "downloads": r.downloads,
+                "rating": r.rating,
+                "verified": r.verified,
+            }
+            for r in recipes
+        ]
+        return {"success": True, "recipes": cards, "count": len(cards)}
+
+    def _handle_recipe_install(self, params: dict) -> dict:
+        """Handle recipe_install — install a recipe."""
+        from src.marketplace.packs import RecipeManager
+
+        rm = RecipeManager()
+        recipe_id = params.get("recipe_id", "")
+        return rm.install_recipe(recipe_id)
+
+    def _handle_recipe_list(self, params: dict) -> dict:
+        """Handle recipe_list — list all recipes."""
+        from src.marketplace.packs import RecipeManager
+
+        rm = RecipeManager()
+        recipes = rm.list_recipes()
+        return {
+            "success": True,
+            "recipes": [r.to_dict() for r in recipes],
+            "count": len(recipes),
+        }
+
+    def _handle_recipe_detail(self, params: dict) -> dict:
+        """Handle recipe_detail — get full recipe details."""
+        from src.marketplace.packs import RecipeManager
+
+        rm = RecipeManager()
+        recipe_id = params.get("recipe_id", "")
+        recipe = rm.get_recipe(recipe_id)
+        if recipe:
+            return {"success": True, "recipe": recipe.to_dict()}
+        return {"success": False, "error": f"Recipe not found: {recipe_id}"}
 
     def list_tools(self) -> list[dict]:
         """Return list of available tool definitions."""
