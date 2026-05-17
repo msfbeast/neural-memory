@@ -1,0 +1,46 @@
+# NeuralMemory Configuration
+
+# PostToolUse hook settings
+hooks:
+  post_tool_call:
+    - command: "python3 ~/.hermes/skills/neural-memory/hooks/capture.py"
+      timeout: 5
+
+# Capture settings
+capture:
+  enabled: true                    # Enable/disable automatic capture
+  max_events_per_session: 100     # Max events captured per session
+  filter_patterns:                # Which event patterns to capture
+    - user_correction      # User corrections ("no, use X not Y")
+    - debug_breakthrough   # Debug sessions with solutions
+    - tool_discovery       # Tool success events
+    - user_preference      # User preferences
+    - budget_constraint    # Budget/price-related decisions
+    - file_operation       # File write/patch/read operations
+    - config_change        # Config/setup/install changes
+    - workflow_discovery   # New workflows/pipelines discovered
+
+# Storage settings
+storage:
+  engrams_db: ~/.plur/neural_memory/engrams.db
+  bm25_index: ~/.plur/neural_memory/bm25_index.json
+  vector_store: ~/.plur/neural_memory/vector_store.db
+
+# Search settings
+search:
+  bm25_k1: 1.5
+  bm25_b: 0.75
+  vector_model: all-MiniLM-L6-v2
+  hybrid_rrf_k: 60
+  hybrid_bm25_weight: 0.6
+  hybrid_vector_weight: 0.4
+
+# Decay settings
+decay:
+  enabled: true
+  decay_rate: 0.95
+  decay_interval_hours: 168       # Weekly decay
+  tier_thresholds:
+    procedural: 0.7
+    semantic: 0.5
+    episodic: 0.3
