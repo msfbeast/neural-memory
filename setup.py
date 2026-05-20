@@ -63,13 +63,15 @@ def install_dependencies():
 
 
 def configure_hook():
-    """Configure PostToolUse hook in config.yaml.
+    """Configure PostToolUse hooks in config.yaml.
 
-    Adds the hook to the existing hooks block without overwriting other hooks.
+    Adds both capture.py and plur_push.py hooks to the existing hooks block
+    without overwriting other hooks.
     """
-    print("Configuring PostToolUse hook...")
+    print("Configuring PostToolUse hooks...")
 
-    hook_script = str(PROJECT_ROOT / "hooks" / "capture.py")
+    capture_script = str(PROJECT_ROOT / "hooks" / "capture.py")
+    push_script = str(PROJECT_ROOT / "hooks" / "plur_push.py")
 
     # Read existing config
     config = {}
@@ -89,17 +91,22 @@ def configure_hook():
     if "post_tool_call" not in config["hooks"]:
         config["hooks"]["post_tool_call"] = []
 
-    # Check if our hook is already registered
-    hook_entry = {"command": f"python3 {hook_script}"}
+    # Check if our hooks are already registered
     existing_commands = [
         h.get("command", "") if isinstance(h, dict) else ""
         for h in config["hooks"]["post_tool_call"]
     ]
-    if hook_script not in existing_commands:
-        config["hooks"]["post_tool_call"].append({
-            "command": f"python3 {hook_script}",
-            "timeout": 5,
-        })
+
+    hooks_to_add = [
+        {"command": f"python3 {capture_script}", "timeout": 5},
+        {"command": f"python3 {push_script}", "timeout": 10},
+    ]
+
+    for hook in hooks_to_add:
+        script_path = hook["command"].replace("python3 ", "")
+        if script_path not in existing_commands:
+            config["hooks"]["post_tool_call"].append(hook)
+            print(f"  Added: {hook['command']}")
 
     # Add capture config
     if "capture" not in config:
@@ -123,11 +130,12 @@ def configure_hook():
         import yaml
         with open(CONFIG_YAML, "w") as f:
             yaml.dump(config, f, default_flow_style=False, sort_keys=False)
-        print("PostToolUse hook configured in config.yaml")
-        print(f"  Hook script: {hook_script}")
+        print("PostToolUse hooks configured in config.yaml")
+        print(f"  Capture hook: {capture_script}")
+        print(f"  Push hook: {push_script}")
         return True
     except Exception as e:
-        print(f"Failed to configure hook: {e}")
+        print(f"Failed to configure hooks: {e}")
         return False
 
 

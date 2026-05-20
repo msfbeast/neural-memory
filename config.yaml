@@ -5,6 +5,8 @@ hooks:
   post_tool_call:
     - command: "python3 ~/.hermes/skills/neural-memory/hooks/capture.py"
       timeout: 5
+    - command: "python3 ~/.hermes/skills/neural-memory/hooks/plur_push.py"
+      timeout: 10
 
 # Capture settings
 capture:
